@@ -1,94 +1,96 @@
-# k8s-troubleshooter
+# K8s Troubleshooter
 
-Simple ReAct agent
-Agent generated with `agents-cli` version `1.4.0`
+**Describe it. Diagnose it. Fix it.**
 
-## Project Structure
-
-```
-k8s-troubleshooter/
-├── app/         # Core agent code
-│   ├── agent.py               # Main agent logic
-│   ├── fast_api_app.py        # FastAPI Backend server
-│   └── app_utils/             # App utilities and helpers
-├── tests/                     # Unit, integration, and load tests
-├── GEMINI.md                  # AI-assisted development guide
-└── pyproject.toml             # Project dependencies
-```
-
-> 💡 **Tip:** Use [Antigravity CLI](https://antigravity.google/) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
-
-## Requirements
-
-Before you begin, ensure you have:
-- **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli`
-- **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
-
-
-## Quick Start
-
-Install `agents-cli` and its skills if not already installed:
-
-```bash
-uvx google-agents-cli setup
-```
-
-Install required packages:
-
-```bash
-agents-cli install
-```
-
-Test the agent with a local web server:
-
-```bash
-agents-cli playground
-```
-
-You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
-
-## Commands
-
-| Command              | Description                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `agents-cli install` | Install dependencies using uv                                                         |
-| `agents-cli playground` | Launch local development environment                                                  |
-| `agents-cli lint`    | Run code quality checks                                                               |
-| `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
-| `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        |
-| `agents-cli deploy`  | Deploy agent to Agent Runtime                                                                |
-| `agents-cli publish gemini-enterprise` | Register deployed agent to Gemini Enterprise                    || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
-
-## 🛠️ Project Management
-
-| Command | What It Does |
-|---------|--------------|
-| `agents-cli scaffold enhance` | Add CI/CD pipelines and Terraform infrastructure |
-| `agents-cli infra cicd` | One-command setup of entire CI/CD pipeline + infrastructure |
-| `agents-cli scaffold upgrade` | Auto-upgrade to latest version while preserving customizations |
+An intelligent Kubernetes troubleshooting assistant built with the Google Agent Development Kit (ADK) and deployed to Google Cloud Agent Platform (Agent Runtime). The agent diagnoses pod crash loops, image pull failures, and memory exhaustion, queries verified runbooks and tracks incidents in Firestore, inspects release lifecycles, generates cluster topology diagrams with Gemini, executes code in a secure sandbox, and renders rich diagnostic cards using A2UI.
 
 ---
 
-## Development
+![K8s Troubleshooter Demo](demo.gif)
 
-Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - it auto-reloads on save.
+---
 
-## Deployment
+## What the Agent Does
 
-```bash
-gcloud config set project <your-project-id>
-agents-cli deploy
+K8s Troubleshooter combines automated diagnostics, cloud incident storage, external API lookups, sandboxed telemetry processing, and adaptive UI rendering to streamline Kubernetes incident response:
+
+### 1. Incident & Runbook Management (Firestore)
+* **Runbook Search (`search_runbooks`)**: Searches verified troubleshooting procedures in Firestore for common issues such as `CrashLoopBackOff`, `OOMKilled`, `ImagePullBackOff`, `CreateContainerConfigError`, and `NodeNotReady`.
+* **Incident Tracking (`create_incident`, `update_incident`, `list_incidents`)**: Logs incidents with cluster details, affected namespaces, pod names, error statuses, triage steps, and resolution states.
+
+### 2. Live Kubernetes Lifecycle API Lookups
+* **Version Support Verification (`check_k8s_version_support`)**: Queries endoflife.date for Kubernetes release cycles, support status, and end-of-life dates to identify cluster version skew or deprecated API risks.
+
+### 3. Cluster Architecture & Topology Diagrams
+* **Diagram Generation (`generate_cluster_diagram`)**: Uses `gemini-3.1-flash-lite-image` to generate cluster topology and fault architecture diagrams, highlighting failing pods, nodes, and network paths.
+* **Dual Delivery**: Saves the image artifact locally via ADK's `tool_context.save_artifact` and uploads it to a public Google Cloud Storage bucket (`gs://k8s-troubleshooter-diagrams-e954671c`), returning a public HTTPS URL.
+
+### 4. Code Execution Sandbox (`AgentEngineSandboxCodeExecutor`)
+* Evaluates raw unparsed logs, container stack traces, and metrics by running Python analysis scripts inside a secure Agent Engine sandbox environment.
+
+### 5. Cross-Session Long-Term Memory (`VertexAiMemoryBankService`)
+* Backed by Vertex AI Memory Bank on Agent Engine.
+* Employs `PreloadMemoryTool` to recall cluster context across sessions (cluster distribution, namespace conventions, recurring incident history) and an `after_agent_callback` to generate and persist memories.
+
+### 6. Agent-First Rich Display (A2UI v0.8)
+* Emits A2UI cards, columns, rows, dividers, and images via `A2uiSchemaManager` (v0.8 Basic Catalog).
+* Renders rich interactive diagnostics with health, warning, and failure status badges directly in the chat interface instead of plain text.
+
+---
+
+## Architecture Overview
+
+```
+                      +---------------------------------------+
+                      |       Web Frontend (Cloud Run)        |
+                      |  - Cyberpunk Midnight Neon UI         |
+                      |  - Built-in A2UI Mini-Renderer        |
+                      |  - FastAPI Proxy (ADC Authentication) |
+                      +-------------------+-------------------+
+                                          |
+                                     A2A Protocol
+                                          |
+                                          v
+                      +---------------------------------------+
+                      |      Agent Engine (Agent Runtime)     |
+                      |         Reasoning Engine              |
+                      +---+---------------+---------------+---+
+                          |               |               |
+     +--------------------+       +-------+-------+       +--------------------+
+     |                            |               |                            |
+     v                            v               v                            v
++------------------+    +-------------------+   +--------------------+  +----------------------+
+| Memory Bank      |    | Firestore         |   | Gemini Image Gen   |  | Code Sandbox         |
+| User environment |    | - runbooks        |   | - Cluster diagrams |  | Telemetry & log      |
+| & incident facts |    | - incidents       |   | - Cloud Storage    |  | execution analysis   |
++------------------+    +-------------------+   +--------------------+  +----------------------+
 ```
 
-To add CI/CD and Terraform, run `agents-cli scaffold enhance`.
-To set up your production infrastructure, run `agents-cli infra cicd`.
+---
 
-## Observability
+## Local Setup & Run
 
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
+### 1. Prerequisites
+* Python 3.10+
+* `uv` package manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+* Google Cloud CLI (`gcloud auth login` & `gcloud auth application-default login`)
 
-## A2A Inspector
+### 2. Install Agent Dependencies
+```bash
+uv sync
+```
 
-This agent supports the [A2A Protocol](https://a2a-protocol.org/). Use the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) to test interoperability.
-See the [A2A Inspector docs](https://github.com/a2aproject/a2a-inspector) for details.
+### 3. Launch Local Agent Playground
+```bash
+uv run adk web app/
+```
+
+### 4. Run Frontend Locally
+```bash
+cd frontend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+Open `http://localhost:8080` in your browser.
