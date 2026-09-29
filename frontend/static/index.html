@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K8s Troubleshooter</title>
+<!-- Google Icons & JetBrains Mono Fonts -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg-main: #0B0817;
+    --bg-surface: rgba(20, 16, 41, 0.82);
+    --bg-surface-elevated: #181332;
+    --bg-bubble-agent: #15112E;
+    --bg-bubble-user: #7C3AED;
+    --border-color: rgba(168, 85, 247, 0.28);
+    --border-subtle: #241D45;
+    --accent-blue: #8B5CF6;
+    --accent-cyan: #06B6D4;
+    --accent-hover: #A78BFA;
+    --status-green: #10B981;
+    --status-amber: #F59E0B;
+    --status-red: #F43F5E;
+    --text-primary: #F8FAFC;
+    --text-muted: #A5B4FC;
+    --code-bg: #070510;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(circle at 12% 18%, rgba(124, 58, 237, 0.2) 0%, transparent 45%),
+                radial-gradient(circle at 88% 82%, rgba(6, 182, 212, 0.16) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, #110D26 0%, #080612 100%);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Header with glassy blur */
+  header {
+    background: var(--bg-surface);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.85rem 1.4rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .header-content {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .brand-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .title svg {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.7));
+  }
+  .subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #CBD5E1;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0.3rem 0.65rem;
+    border-radius: 9999px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--status-green);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .clear-btn {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .clear-btn:hover {
+    color: #FFFFFF;
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  /* Chat Log */
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.2rem;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    scrollbar-width: thin;
+    scrollbar-color: #1E293B transparent;
+  }
+  #log::-webkit-scrollbar { width: 6px; }
+  #log::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: auto 0;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+  }
+  .empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-blue);
+    margin-bottom: 0.75rem;
+  }
+  .empty-state h3 {
+    margin: 0 0 0.4rem 0;
+    color: #F8FAFC;
+    font-size: 1.15rem;
+  }
+  .empty-state p {
+    margin: 0;
+    font-size: 0.88rem;
+    max-width: 440px;
+    line-height: 1.5;
+  }
+
+  /* Chat Messages */
+  .msg {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    animation: fadeIn 0.25s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg.user { align-items: flex-end; }
+  .msg.agent { align-items: flex-start; }
+
+  .bubble {
+    display: inline-block;
+    padding: 0.85rem 1.15rem;
+    border-radius: 14px;
+    background: var(--bg-bubble-agent);
+    border: 1px solid var(--border-color);
+    text-align: left;
+    max-width: 88%;
+    color: var(--text-primary);
+    line-height: 1.55;
+    word-break: break-word;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    position: relative;
+  }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    color: #FFFFFF;
+    white-space: pre-wrap;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  }
+
+  /* Monospace formatting for kubectl & YAML in bubbles */
+  .bubble pre,
+  .bubble code,
+  .monospace-content {
+    font-family: "JetBrains Mono", monospace !important;
+    font-size: 0.86rem;
+    background: var(--code-bg);
+    border: 1px solid #1E293B;
+    border-radius: 8px;
+    padding: 0.2rem 0.45rem;
+  }
+  .bubble pre {
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    margin: 0.6rem 0;
+    line-height: 1.45;
+    position: relative;
+    border-left: 3px solid var(--accent-blue);
+  }
+  .code-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.2rem;
+  }
+  .copy-code-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #94A3B8;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .copy-code-btn:hover {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  /* A2UI Rich Card Styling */
+  .bubble.rich {
+    background: transparent;
+    border: none;
+    padding: 0;
+    max-width: 100%;
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .a2card {
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 1.25rem;
+    background: linear-gradient(180deg, #131E35 0%, #0E1628 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    max-width: 100%;
+    margin-top: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .a2card:hover {
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(59, 130, 246, 0.2);
+  }
+  .a2card + .a2card, .a2col > .a2card { margin-top: 0.7rem; }
+  .a2col { display: flex; flex-direction: column; gap: 0.6rem; }
+  .a2row { display: flex; flex-direction: row; gap: 0.7rem; align-items: center; flex-wrap: wrap; }
+  .a2row.between { justify-content: space-between; }
+  .a2text { margin: 0; line-height: 1.45; color: var(--text-primary); }
+  .a2text.a2-h1 { font-size: 1.45rem; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em; }
+  .a2text.a2-h2 { font-size: 1.2rem; font-weight: 700; color: var(--accent-cyan); }
+  .a2text.a2-h3 { font-size: 1.05rem; font-weight: 600; color: #FFFFFF; }
+  .a2text.a2-h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
+  .a2text.a2-caption { font-size: 0.82rem; color: var(--text-muted); }
+  .a2divider { border: none; border-top: 1px solid rgba(59, 130, 246, 0.2); margin: 0.75rem 0; width: 100%; }
+  .a2img { max-width: 100%; border-radius: 10px; border: 1px solid var(--border-color); display: block; margin: 0.6rem 0; box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
+  .material-symbols-outlined {
+    font-size: 1.25rem;
+    line-height: 1;
+    vertical-align: middle;
+    color: var(--accent-blue);
+  }
+
+  /* Status Colors */
+  .badge-healthy { color: var(--status-green) !important; font-weight: 600; }
+  .badge-warning { color: var(--status-amber) !important; font-weight: 600; }
+  .badge-failing { color: var(--status-red) !important; font-weight: 700; }
+
+  /* Interactive Footer */
+  footer {
+    background: var(--bg-surface);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-color);
+    padding: 0.85rem 1.4rem 1.1rem 1.4rem;
+    flex-shrink: 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+  }
+  .footer-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Quick Prompts Row */
+  .prompts-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .prompts-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .quick-prompts {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+    flex: 1;
+  }
+  .quick-prompts::-webkit-scrollbar { display: none; }
+  .prompt-btn {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: #CBD5E1;
+    border-radius: 9999px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .prompt-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #FFFFFF;
+    border-color: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  }
+  .prompt-btn:active {
+    transform: translateY(0);
+  }
+
+  /* Input Form */
+  form {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    background: rgba(11, 19, 43, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  form:focus-within {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  textarea {
+    flex: 1;
+    padding: 0.55rem 0;
+    border: none;
+    font-size: 0.95rem;
+    background: transparent;
+    color: #F8FAFC;
+    resize: none;
+    min-height: 42px;
+    max-height: 160px;
+    line-height: 1.5;
+    font-family: inherit;
+    box-sizing: border-box;
+    outline: none;
+  }
+  textarea::placeholder {
+    color: #64748B;
+  }
+  .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .quick-snippet-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    border-radius: 8px;
+    height: 38px;
+    padding: 0 0.65rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.15s ease;
+  }
+  .quick-snippet-btn:hover {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  button[type="submit"] {
+    height: 38px;
+    padding: 0 1.25rem;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 0.92rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+  }
+  button[type="submit"]:hover {
+    background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.5);
+    transform: translateY(-1px);
+  }
+  button[type="submit"]:active {
+    transform: translateY(0);
+  }
+
+  /* Typing loader animation */
+  .typing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.3rem 0;
+  }
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--accent-blue);
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+  .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  @media (max-width: 640px) {
+    header { padding: 0.65rem 0.9rem; }
+    #log { padding: 0.85rem; }
+    .bubble { max-width: 95%; }
+    footer { padding: 0.65rem 0.85rem 0.85rem 0.85rem; }
+    .title { font-size: 1.15rem; }
+    .prompts-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-content">
+    <div class="brand-group">
+      <span class="title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 17L12 22L22 17" stroke="#06B6D4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 12L12 17L22 12" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        K8s Troubleshooter
+      </span>
+      <p class="subtitle">Describe it. Diagnose it. Fix it.</p>
+    </div>
+    <div class="header-actions">
+      <div class="status-strip">
+        <span class="status-dot"></span>
+        <span>Agent: Online</span>
+      </div>
+      <button type="button" class="clear-btn" id="clear-btn" title="Clear chat history">
+        <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+        Clear
+      </button>
+    </div>
+  </div>
+</header>
+
+<div id="log">
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">
+      <span class="material-symbols-outlined" style="font-size:28px;">terminal</span>
+    </div>
+    <h3>Kubernetes Diagnostic Assistant</h3>
+    <p>Paste your <code>kubectl get pods</code> table, events, or describe an incident to diagnose root causes and visualize cluster topology.</p>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="prompts-container">
+      <span class="prompts-label">Quick Actions:</span>
+      <div class="quick-prompts">
+        <button type="button" class="prompt-btn" data-prompt="Why is my pod in CrashLoopBackOff?">
+          <span class="material-symbols-outlined" style="font-size:16px; color:#EF4444;">error</span>
+          CrashLoopBackOff
+        </button>
+        <button type="button" class="prompt-btn" data-prompt="Analyse my kubectl get pods output">
+          <span class="material-symbols-outlined" style="font-size:16px; color:#3B82F6;">analytics</span>
+          Analyse Pods
+        </button>
+        <button type="button" class="prompt-btn" data-prompt="Show a diagnosis card for the OOMKilled worker pod with a cluster diagram.">
+          <span class="material-symbols-outlined" style="font-size:16px; color:#06B6D4;">schema</span>
+          Diagram & OOM Card
+        </button>
+        <button type="button" class="prompt-btn" data-prompt="Is Kubernetes 1.29 still supported?">
+          <span class="material-symbols-outlined" style="font-size:16px; color:#F59E0B;">info</span>
+          Version Check
+        </button>
+        <button type="button" class="prompt-btn" data-prompt="Show my open incidents">
+          <span class="material-symbols-outlined" style="font-size:16px; color:#10B981;">confirmation_number</span>
+          Incidents
+        </button>
+      </div>
+    </div>
+    <form id="form">
+      <textarea id="input" rows="1" placeholder="Describe an issue, paste kubectl logs/YAML, or ask for help…" autofocus></textarea>
+      <div class="form-actions">
+        <button type="button" class="quick-snippet-btn" id="paste-sample-btn" title="Insert sample kubectl get pods output">
+          <span class="material-symbols-outlined" style="font-size:18px;">content_paste</span>
+          Sample
+        </button>
+        <button type="submit" id="send-btn">
+          Send
+          <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</footer>
+
+<script>
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const emptyState = document.getElementById("empty-state");
+const clearBtn = document.getElementById("clear-btn");
+const pasteSampleBtn = document.getElementById("paste-sample-btn");
+
+function hideEmptyState() {
+  if (emptyState && emptyState.parentNode) {
+    emptyState.remove();
+  }
+}
+
+clearBtn.addEventListener("click", () => {
+  log.innerHTML = "";
+  log.appendChild(emptyState);
+});
+
+pasteSampleBtn.addEventListener("click", () => {
+  const sample = `NAME                          READY   STATUS             RESTARTS       AGE
+api-7d9f8b6c5d-x2k4p          0/1     CrashLoopBackOff   7 (2m ago)     18m
+api-7d9f8b6c5d-q8n1z          1/1     Running            0              18m
+worker-5c6b7d8f9-lm3tq        0/1     CrashLoopBackOff   4 (45s ago)    12m
+frontend-6f8d9c7b4-zp2wr      0/1     ImagePullBackOff   0              5m
+redis-0                       1/1     Running            0              2d
+
+What's wrong?`;
+  input.value = sample;
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  input.focus();
+});
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function bubble(who) {
+  hideEmptyState();
+  const m = el("div", "msg " + who);
+  const b = el("div", "bubble");
+  m.appendChild(b);
+  log.appendChild(m);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+/* ----------------------------------------------------------------------------
+ * A2UI mini-renderer (v0.8 Basic Catalog subset).
+ * -------------------------------------------------------------------------- */
+
+function boundStr(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v.literalString === "string") return v.literalString;
+  return "";
+}
+
+function childIds(props) {
+  const ids = [];
+  if (props && typeof props.child === "string") ids.push(props.child);
+  const ch = props && props.children;
+  if (ch && Array.isArray(ch.explicitList)) {
+    for (const c of ch.explicitList) if (typeof c === "string") ids.push(c);
+  }
+  return ids;
+}
+
+function iconName(n) {
+  return String(n || "").replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toLowerCase();
+}
+
+function buildNode(id, comps, seen) {
+  if (!id || seen.has(id)) return null;
+  seen.add(id);
+  const spec = comps[id];
+  if (!spec || typeof spec !== "object") return null;
+  const type = Object.keys(spec)[0];
+  const props = spec[type] || {};
+  const kids = () => childIds(props).map(cid => buildNode(cid, comps, seen)).filter(Boolean);
+
+  switch (type) {
+    case "Card": {
+      const d = el("div", "a2card");
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Column":
+    case "List": {
+      const horizontal = type === "List" && props.direction === "horizontal";
+      const d = el("div", horizontal ? "a2row" : "a2col");
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Row": {
+      const d = el("div", "a2row" + (props.distribution === "spaceBetween" ? " between" : ""));
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Text": {
+      const t = el("div", "a2text");
+      const hint = String(props.usageHint || "body").toLowerCase();
+      if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(hint)) t.classList.add("a2-" + hint);
+      else if (hint === "caption") t.classList.add("a2-caption");
+
+      const txt = boundStr(props.text);
+      if (/running|ready|healthy|active/i.test(txt)) {
+        t.classList.add("badge-healthy");
+      } else if (/warning|pending|evicted|terminating/i.test(txt)) {
+        t.classList.add("badge-warning");
+      } else if (/crashloopbackoff|oomkilled|error|failed|imagepullbackoff|errimagepull/i.test(txt)) {
+        t.classList.add("badge-failing");
+      }
+
+      t.textContent = txt;
+      return t;
+    }
+    case "Divider":
+      return el("hr", "a2divider");
+    case "Image": {
+      const src = boundStr(props.url || props.src);
+      if (!/^https?:\/\//i.test(src)) return null;
+      const img = el("img", "a2img");
+      img.src = src;
+      img.alt = boundStr(props.alt) || "Cluster Topology";
+      return img;
+    }
+    case "Icon": {
+      const s = el("span", "material-symbols-outlined");
+      s.textContent = iconName(boundStr(props.name) || props.name);
+      return s;
+    }
+    default:
+      return null;
+  }
+}
+
+function renderSurface(messages, container) {
+  const comps = {};
+  const roots = [];
+  for (const m of messages) {
+    if (m.beginRendering && typeof m.beginRendering.root === "string") roots.push(m.beginRendering.root);
+    const su = m.surfaceUpdate;
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
+    }
+  }
+  let rootIds = roots.filter(r => comps[r]);
+  if (rootIds.length === 0) {
+    const referenced = new Set();
+    for (const id in comps) {
+      const spec = comps[id];
+      childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c));
+    }
+    rootIds = Object.keys(comps).filter(id => !referenced.has(id));
+  }
+  let drew = false;
+  for (const rid of rootIds) {
+    const node = buildNode(rid, comps, new Set());
+    if (node) { container.appendChild(node); drew = true; }
+  }
+  return drew;
+}
+
+function flattenText(messages) {
+  const out = [];
+  for (const m of messages) {
+    const su = m.surfaceUpdate;
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) if (c && c.component && c.component.Text) out.push(boundStr(c.component.Text.text));
+    }
+  }
+  return out.join("\n").trim();
+}
+
+function createCodeBlock(content) {
+  const wrapper = document.createElement("div");
+  const header = document.createElement("div");
+  header.className = "code-header";
+  
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "copy-code-btn";
+  copyBtn.textContent = "Copy";
+  copyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(content);
+    copyBtn.textContent = "Copied!";
+    setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+  });
+  
+  header.appendChild(copyBtn);
+  wrapper.appendChild(header);
+  
+  const pre = document.createElement("pre");
+  pre.textContent = content;
+  wrapper.appendChild(pre);
+  return wrapper;
+}
+
+function formatContent(text) {
+  const container = document.createElement("div");
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  for (const part of parts) {
+    if (part.startsWith("```") && part.endsWith("```")) {
+      const lines = part.slice(3, -3).trim();
+      const firstLineBreak = lines.indexOf("\n");
+      let codeContent = lines;
+      if (firstLineBreak > -1 && /^[a-zA-Z0-9_-]+$/.test(lines.slice(0, firstLineBreak).trim())) {
+        codeContent = lines.slice(firstLineBreak + 1);
+      }
+      container.appendChild(createCodeBlock(codeContent));
+    } else if (part) {
+      const lines = part.split("\n");
+      const isKubectlOrYaml = lines.some(l => 
+        /^(NAME\s+READY|apiVersion:|kind:|metadata:|spec:|status:)/.test(l.trim())
+      );
+      if (isKubectlOrYaml && lines.length > 2) {
+        container.appendChild(createCodeBlock(part.trim()));
+      } else {
+        const p = document.createElement("div");
+        p.style.whiteSpace = "pre-wrap";
+        p.textContent = part;
+        container.appendChild(p);
+      }
+    }
+  }
+  return container;
+}
+
+function renderReply(b, parts) {
+  b.textContent = "";
+  const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
+  const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
+
+  const textStr = texts.join("\n").trim();
+  if (textStr) {
+    b.appendChild(formatContent(textStr));
+  }
+
+  if (a2ui.length) {
+    b.classList.add("rich");
+    if (!renderSurface(a2ui, b)) {
+      b.appendChild(el("div", null, flattenText(a2ui) || "(no card content)"));
+    }
+  }
+  if (!b.childNodes.length) b.textContent = "(no response)";
+  log.scrollTop = log.scrollHeight;
+}
+
+/* Auto-resize textarea */
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+});
+
+/* Multiline textarea: Enter sends, Shift+Enter adds newline */
+input.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && !ev.shiftKey) {
+    ev.preventDefault();
+    form.dispatchEvent(new Event("submit"));
+  }
+});
+
+/* Clickable example prompts */
+document.querySelectorAll(".prompt-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    input.value = btn.getAttribute("data-prompt");
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+    input.focus();
+  });
+});
+
+/* Form submission */
+form.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+
+  const userBubble = bubble("user");
+  if (/^(NAME\s+READY|apiVersion:|kind:|metadata:|spec:)/m.test(text)) {
+    userBubble.appendChild(createCodeBlock(text));
+  } else {
+    userBubble.textContent = text;
+  }
+
+  input.value = "";
+  input.style.height = "auto";
+
+  const b = bubble("agent");
+  // Interactive animated typing loader
+  b.innerHTML = `
+    <div class="typing-indicator">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
+  `;
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error(`Server returned non-JSON (HTTP ${res.status}). ${raw.slice(0, 300)}`);
+    }
+    renderReply(b, data.parts || []);
+  } catch (e) {
+    b.textContent = "Error: " + e.message;
+  }
+});
+</script>
+</body>
+</html>
